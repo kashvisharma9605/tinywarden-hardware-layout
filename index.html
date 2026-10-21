@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light}body{margin:0}[hidden]{display:none!important}</style>
+<title>TinyWarden Hardware Layout</title>
+<style>
+/* Drafting sheet on green engineering paper: drawing stage on the left, notes panel on the right */
+:root{
+  --paper:#F3F7EC; --grid-minor:rgba(46,125,50,.16); --grid-major:rgba(46,125,50,.40);
+  --ink:#1B2A1E; --ink-2:#4E5F50; --block:#FBFDF8; --esp:#E2EAD8; --term:#E6EDDC; --psu:#ECECE2;
+  --th:#B35900; --lux:#0A6C97; --hi:#7B1FA2; --hi-bg:#F3E5F8;
+  --f-label:'Bookman Old Style','Bookman','URW Bookman','URW Bookman L',Georgia,serif;
+  --f-text:'Times New Roman',Times,'Liberation Serif',serif;
+  color-scheme: light;
+}
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-text);font-size:16px}
+.app{height:100%;display:flex;flex-direction:column;gap:10px;box-sizing:border-box;padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px}
+h1{font-family:var(--f-label);font-size:26px;margin:0;letter-spacing:.02em}
+.top{display:flex;flex-direction:column;gap:4px;border-bottom:2px solid var(--ink);padding-bottom:8px}
+.eyebrow{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.titlerow{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px}
+.subt{font-size:17px;color:var(--ink)}
+.crumbs{display:flex;flex-wrap:wrap;gap:4px;align-items:baseline;font-size:16px}
+.crumbs button{font:inherit;background:none;border:none;padding:2px 4px;color:var(--ink);text-decoration:underline;cursor:pointer}
+.crumbs button[aria-current]{text-decoration:none;font-weight:700;cursor:default}
+.crumbs span{color:var(--ink-2)}
+.main{flex:1;min-height:0;display:flex;gap:12px}
+.stage{flex:1;min-width:0;position:relative;border:2.5px solid var(--ink);background:var(--paper)}
+.stage::after{content:"";position:absolute;inset:5px;border:1px solid var(--ink);pointer-events:none}
+#sv{width:100%;height:100%;display:block;touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#sv *{-webkit-user-select:none;user-select:none}
+#sv.panning{cursor:grabbing}
+#layer{transition:opacity .16s ease}
+.ctl{position:absolute;display:flex;gap:6px;z-index:2}
+.ctl.tl{top:14px;left:14px}
+.ctl.br{bottom:14px;right:14px}
+.ctl button{font-family:var(--f-text);font-size:15px;background:var(--block);color:var(--ink);border:1.5px solid var(--ink);padding:5px 10px;cursor:pointer;min-height:34px}
+.ctl button:hover{background:var(--esp)}
+.ctl button:focus-visible,.crumbs button:focus-visible{outline:3px solid var(--hi);outline-offset:2px}
+.ctl button[disabled]{opacity:.35;cursor:default}
+#back{display:flex;align-items:center;gap:6px;font-family:var(--f-label);font-weight:700}
+.panel{width:300px;flex:none;overflow:auto;border:1.5px solid var(--ink);padding:12px 14px;background:rgba(255,255,255,.55);display:flex;flex-direction:column;gap:14px}
+.panel h2{font-family:var(--f-label);font-size:15px;margin:0 0 4px;letter-spacing:.03em;text-transform:uppercase}
+.panel p{margin:0;line-height:1.4}
+.panel ul{margin:4px 0 0;padding-left:18px;line-height:1.45}
+.box{border-top:1px solid var(--ink-2);padding-top:10px}
+.lg{display:grid;grid-template-columns:34px 1fr;gap:6px 8px;align-items:center;font-size:15px}
+.go{margin-top:8px;font:inherit;background:var(--block);border:1.5px solid var(--ink);padding:4px 10px;cursor:pointer}
+.muted{color:var(--ink-2)}
+@media (max-width:860px){
+  html,body{height:auto}
+  .app{height:auto}
+  .main{flex-direction:column}
+  .stage{flex:none;height:70vh;min-height:420px}
+  .panel{width:auto}
+}
+/* SVG drawing classes */
+.blk{stroke:var(--ink);stroke-width:1.5}
+.k-esp .blk{fill:var(--esp)} .k-mod .blk,.k-res .blk,.k-cap .blk{fill:var(--block)}
+.k-term .blk{fill:var(--term)} .k-psu .blk{fill:var(--psu)} .k-npn .blk,.k-pnp .blk{fill:var(--block)}
+.k-th .blk{fill:var(--th);stroke:var(--th)} .k-lux .blk{fill:var(--lux);stroke:var(--lux)}
+.k-plate .blk{fill:rgba(255,255,255,.35);stroke-width:2.2}
+.k-heat .blk{fill:#F6E3D0;stroke:var(--th)}
+.inner{fill:none;stroke:var(--ink);stroke-width:1}
+.nm{font-family:var(--f-label);font-weight:700;font-size:15px;fill:var(--ink)}
+.sb{font-family:var(--f-text);font-size:12.5px;fill:var(--ink-2)}
+.k-th .nm,.k-lux .nm,.k-th .sb,.k-lux .sb,.k-th .pn,.k-lux .pn{fill:#fff}
+.pn{font-family:var(--f-text);font-size:11.5px;fill:var(--ink)}
+.stub{stroke:var(--ink);stroke-width:1.3}
+.tag rect{fill:#FFFFFF;stroke:var(--ink);stroke-width:1}
+.tag text{font-family:var(--f-text);font-size:13px;fill:var(--ink)}
+.tag.ext rect{stroke-dasharray:4 2.5}
+.tag.nc text{font-style:italic;fill:var(--ink-2)}
+.tag{cursor:pointer}
+.dot{fill:var(--ink)}
+.open{cursor:pointer}
+.open:hover .blk{stroke-width:2.6}
+.open:focus{outline:none}
+.open:focus-visible .blk{stroke:var(--hi);stroke-width:3}
+.chip rect{fill:var(--ink)} .chip text{font-family:var(--f-text);font-size:11px;fill:#fff;letter-spacing:.06em}
+.dash{fill:none;stroke:var(--ink-2);stroke-width:2;stroke-dasharray:9 5}
+.cline{fill:none;stroke:var(--ink-2);stroke-width:1;stroke-dasharray:24 5 4 5}
+.frame{fill:none;stroke:var(--ink-2);stroke-width:1.6;stroke-dasharray:8 5}
+.ft{font-family:var(--f-label);font-weight:700;font-size:14px;fill:var(--ink-2)}
+.note{font-family:var(--f-text);font-size:13px;fill:var(--ink-2)}
+.wire{stroke:var(--ink);stroke-width:4;fill:none}
+.pv{pointer-events:none}
+.pv .b{fill:var(--block);stroke:var(--ink);stroke-width:1}
+.pv .e{fill:var(--esp);stroke:var(--ink);stroke-width:1}
+.pv .o{fill:var(--th)} .pv .u{fill:var(--lux)}
+.pv text{font-family:var(--f-label);font-weight:700;font-size:12px;fill:var(--ink)}
+svg.sel [data-net]{opacity:.28}
+svg.sel [data-net].on{opacity:1}
+svg.sel .tag.on rect{fill:var(--hi-bg);stroke:var(--hi);stroke-width:2.2}
+svg.sel .stub.on{stroke:var(--hi);stroke-width:2.6}
+svg.sel .dot.on{fill:var(--hi)}
+.comp.picked .blk{stroke:var(--hi);stroke-width:3}
+@media (prefers-reduced-motion: reduce){#layer{transition:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="eyebrow">SDG 9 Experiential Learning Project · Semester 5 · Department of Electronics and Communication Engineering · RV College of Engineering, Bengaluru</div>
+    <div class="titlerow">
+      <h1>TinyWarden</h1>
+      <span class="subt">Self-Diagnosing Faults and Intrusions on IoT Edge Nodes · Hardware Layout</span>
+    </div>
+  </header>
+  <header>
+    <nav class="crumbs" id="crumbs" aria-label="Location"></nav>
+  </header>
+  <div class="main">
+    <div class="stage" id="stage">
+      <svg id="sv" role="img" aria-label="Hardware layout drawing" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <pattern id="gmin" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="rgba(46,125,50,.16)" stroke-width="1"/></pattern>
+          <pattern id="gmaj" width="100" height="100" patternUnits="userSpaceOnUse"><rect width="100" height="100" fill="url(#gmin)"/><path d="M100 0H0V100" fill="none" stroke="rgba(46,125,50,.40)" stroke-width="1.2"/></pattern>
+        </defs>
+        <rect x="-6000" y="-6000" width="14000" height="14000" fill="url(#gmaj)"/>
+        <g id="layer"></g>
+      </svg>
+      <div class="ctl tl"><button id="back" type="button" aria-label="Back to previous view">
+        <svg width="18" height="14" viewBox="0 0 18 14" aria-hidden="true"><path d="M7 1 1 7l6 6M1 7h16" fill="none" stroke="currentColor" stroke-width="2"/></svg>Back</button></div>
+      <div class="ctl br">
+        <button type="button" id="zin" aria-label="Zoom in">+</button>
+        <button type="button" id="zout" aria-label="Zoom out">−</button>
+        <button type="button" id="zfit">Fit</button>
+      </div>
+    </div>
+    <aside class="panel">
+      <section><h2 id="ptitle">View</h2><p id="pabout"></p></section>
+      <section class="box" aria-live="polite"><h2>Connection</h2><div id="pnet"><p class="muted">Select any label tag to see every pin on that connection. Matching tags are the same wire.</p></div></section>
+      <section class="box" aria-live="polite"><h2>Part</h2><div id="ppart"><p class="muted">Select a part to see its notes. Blocks with a double border zoom in.</p></div></section>
+      <section class="box"><h2>Legend</h2>
+        <div class="lg">
+          <svg width="34" height="18" aria-hidden="true"><rect x="4" y="2" width="26" height="14" fill="#B35900"/></svg><span>Temperature / humidity sensor</span>
+          <svg width="34" height="18" aria-hidden="true"><rect x="4" y="2" width="26" height="14" fill="#0A6C97"/></svg><span>Light sensor</span>
+          <svg width="34" height="18" aria-hidden="true"><line x1="0" y1="9" x2="10" y2="9" stroke="#1B2A1E" stroke-width="1.3"/><rect x="10" y="2" width="23" height="14" fill="#fff" stroke="#1B2A1E"/></svg><span>Tag: the wire goes to every pin with the same tag</span>
+          <svg width="34" height="18" aria-hidden="true"><rect x="5" y="2" width="26" height="14" fill="#fff" stroke="#1B2A1E" stroke-dasharray="4 2.5"/></svg><span>Dashed tag: continues in another view</span>
+          <svg width="34" height="18" aria-hidden="true"><rect x="2" y="1" width="30" height="16" fill="none" stroke="#1B2A1E" stroke-width="1.5"/><rect x="5" y="4" width="24" height="10" fill="none" stroke="#1B2A1E"/></svg><span>Double border: select to open</span>
+        </div>
+        <p class="muted" style="margin-top:8px">Scroll or pinch to zoom, drag to move. Esc goes back.</p>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+const NS='http://www.w3.org/2000/svg';
+const STUB=18, TAG_H=20, TAG_FS=13;
+const cv=document.createElement('canvas').getContext('2d');
+function textW(t,px){cv.font=px+'px "Times New Roman", Times, "Liberation Serif", serif';return cv.measureText(t).width;}
+function tagW(t){return Math.ceil(textW(t,TAG_FS))+14;}
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);if(attrs)for(const k in attrs){if(attrs[k]!==undefined&&attrs[k]!==null)e.setAttribute(k,attrs[k]);}if(parent)parent.appendChild(e);return e;}
+function txt(parent,x,y,s,cls,anchor){const t=el('text',{x:x,y:y,class:cls,'text-anchor':anchor||'start'},parent);t.textContent=s;return t;}
+
+/* ---------------- shared net label sets ---------------- */
+const FN=['GND','AUX5V','SERVO','SDA_LOW','SCL_LOW','BUS_CAP','BROWNOUT','HEAT'];
+const FN_LABEL={GND:'GND',AUX5V:'AUX 5 V',SERVO:'Servo signal',SDA_LOW:'SDA_LOW',SCL_LOW:'SCL_LOW',BUS_CAP:'BUS_CAP',BROWNOUT:'BROWNOUT',HEAT:'HEAT'};
+const SERVO_GPIO=['GPIO4','GPIO5','GPIO6','GPIO7','GPIO15','GPIO16'];
+/* MCP23017 pin map: [chip, pin, node, function] */
+const MCP_MAP=[];
+[[1,[1,2,3]],[2,[4,5,6]]].forEach(function(pair){
+  const chip=pair[0],nodes=pair[1];
+  const a=nodes[0],b=nodes[1],c=nodes[2];
+  const f=['SDA_LOW','SCL_LOW','BUS_CAP','BROWNOUT','HEAT'];
+  for(let i=0;i<5;i++)MCP_MAP.push([chip,'GPA'+i,a,f[i]]);
+  for(let i=0;i<5;i++)MCP_MAP.push([chip,'GPB'+i,b,f[i]]);
+  MCP_MAP.push([chip,'GPA5',c,'SDA_LOW']);MCP_MAP.push([chip,'GPA6',c,'SCL_LOW']);MCP_MAP.push([chip,'GPA7',c,'BUS_CAP']);
+  MCP_MAP.push([chip,'GPB5',c,'BROWNOUT']);MCP_MAP.push([chip,'GPB6',c,'HEAT']);
+});
+function mcpNet(chip,pin){const m=MCP_MAP.find(function(r){return r[0]===chip&&r[1]===pin;});return m?('N'+m[2]+'_'+m[3]):('NC'+chip);}
+
+/* ---------------- views ---------------- */
+function V_board(){
+  const pos=[[440,95],[726,260],[726,590],[440,755],[154,590],[154,260]];
+  const comps=[{id:'HUB',kind:'plate',name:'HUB',x:370,y:370,w:260,h:260,open:{key:'hub'},nameAbove:true,preview:'hub',note:'Raspberry Pi 5, Wi-Fi router and injector board, at the centre of the base board.'}];
+  pos.forEach(function(p,i){comps.push({id:'N'+(i+1),kind:'plate',name:'N'+(i+1),x:p[0],y:p[1],w:120,h:150,open:{key:'node',n:i+1},nameAbove:true,preview:'node',note:'Node plate 110 × 220 mm. Sensors face outward, ESP32 faces the hub.'});});
+  comps.push({id:'REF',kind:'plate',name:'REF',x:815,y:80,w:110,h:110,open:{key:'ref'},nameAbove:true,preview:'ref',note:'Reference board. Never faulted or attacked.'});
+  return {key:'board',title:'Base board, top view',vb:[0,0,1000,1000],nets:{},comps:comps,
+    about:'Top view of the 1 m × 1 m base board. The hub sits at the centre, six identical nodes sit on a ring 60° apart (N1 at the top, numbered clockwise) and the REF board sits in the top-right corner. Select any block to open it.',
+    under:function(g){
+      el('rect',{x:30,y:30,width:940,height:940,fill:'none',stroke:'#1B2A1E','stroke-width':3},g);
+      el('line',{x1:500,y1:40,x2:500,y2:960,class:'cline'},g);el('line',{x1:40,y1:500,x2:960,y2:500,class:'cline'},g);
+      el('circle',{cx:500,cy:500,r:330,class:'dash'},g);
+      txt(g,500,986,'1000 mm','note','middle');
+      const t=txt(g,20,500,'1000 mm','note','middle');t.setAttribute('transform','rotate(-90 20 500)');
+    }};
+}
+
+function V_hub(){
+  const P=function(id,name,x,top,bottom,note){return {id:id,kind:'psu',name:name,x:x,y:760,w:220,h:80,titleH:0,t:[top],b:[['MAINS','MAINS']],note:note};};
+  return {key:'hub',title:'Hub',vb:[0,0,1400,900],
+    about:'Contents of the hub. The Raspberry Pi 5 connects to the Wi-Fi router by an Ethernet cable. The injector board drives the fault board on every node through one 8-core cable each (C1 to C6). All adapters plug into a power strip under the board.',
+    nets:{
+      ETH:{label:'Ethernet',wire:true,wireLabel:'Ethernet cable · Cat5 · 0.8 m'},
+      RT_PWR:{label:'Router power'},
+      NC_WAN:{label:'Unused (no internet)',nc:true},
+      WIFI:{label:'Wi-Fi 2.4 GHz',info:'Also joined by N1 to N6 and the REF board.'},
+      BTN_SIG:{label:'Event button leg 1'},
+      BTN_GND:{label:'Event button leg 2'},
+      PI_PWR:{label:'Pi power (27 W)'},
+      INJ_PWR:{label:'Injector USB-C 5 V'},
+      AUX_IN:{label:'AUX 5 V (DC jack)'},
+      MAINS:{label:'Mains strip (under board)'},
+      CAB1:{label:'N1 fault board J1',ext:true,go:{key:'fault',n:1}},
+      CAB2:{label:'N2 fault board J1',ext:true,go:{key:'fault',n:2}},
+      CAB3:{label:'N3 fault board J1',ext:true,go:{key:'fault',n:3}},
+      CAB4:{label:'N4 fault board J1',ext:true,go:{key:'fault',n:4}},
+      CAB5:{label:'N5 fault board J1',ext:true,go:{key:'fault',n:5}},
+      CAB6:{label:'N6 fault board J1',ext:true,go:{key:'fault',n:6}}
+    },
+    comps:[
+      {id:'RT',kind:'mod',name:'WI-FI ROUTER',sub:'A, B or C, one at a time',x:160,y:110,w:300,h:200,titleH:44,
+        l:[['DC IN','RT_PWR'],['WAN','NC_WAN']],r:[['LAN 1','ETH']],t:[['Wi-Fi','WIFI','h']],
+        note:'Isolated network, no internet. 2.4 GHz on a fixed channel (1, 6 or 11).'},
+      {id:'PI',kind:'esp',name:'RASPBERRY PI 5 (8 GB)',sub:'NVMe SSD · active cooler',x:660,y:110,w:300,h:200,titleH:44,
+        l:[['ETH','ETH']],r:[['GPIO17 (pin 11)','BTN_SIG'],['GND (pin 9)','BTN_GND']],b:[['USB-C power','PI_PWR']],
+        note:'Runs the MQTT broker, the data logger and the fault scheduler. Not connected to a computer; reached over SSH.'},
+      {id:'BTN',kind:'mod',name:'EVENT BUTTON',sub:'push button',x:1120,y:380,w:180,h:120,titleH:40,
+        l:[['LEG 1','BTN_SIG'],['LEG 2','BTN_GND']],note:'Press at the moment of a manual change (door, lamp, fan heater). The Pi uses its internal pull-up, so no resistor.'},
+      {id:'INJ',kind:'esp',name:'INJECTOR BOARD',sub:'ESP32-S3 · 2 × MCP23017',x:560,y:430,w:400,h:250,titleH:44,open:{key:'injector'},
+        l:[['USB-C (ESP32)','INJ_PWR'],['DC jack','AUX_IN']],t:[['Wi-Fi','WIFI','h']],
+        r:[['C1','CAB1'],['C2','CAB2'],['C3','CAB3'],['C4','CAB4'],['C5','CAB5'],['C6','CAB6']],
+        note:'Switches the physical faults on the six nodes when the Pi asks.'},
+      P('P1','OFFICIAL 27 W PSU',260,['USB-C OUT','PI_PWR'],null,'Raspberry Pi official 27 W USB-C supply.'),
+      P('P2','ROUTER ADAPTER',540,['DC OUT','RT_PWR'],null,'The adapter that comes with the router.'),
+      P('P3','PHONE CHARGER',820,['USB-C OUT','INJ_PWR'],null,'Any 5 V ≥ 1 A charger with a USB-A to Type-C cable. Powers the injector ESP32.'),
+      P('P4','AUX 5 V 3 A ADAPTER',1100,['DC OUT','AUX_IN'],null,'5 V 3 A adapter with a 5.5 × 2.1 mm plug. Powers only the heaters and servos.')
+    ],
+    under:function(g){
+      el('rect',{x:40,y:46,width:1320,height:654,class:'frame'},g);txt(g,56,70,'HUB (centre of the base board)','ft');
+      el('rect',{x:40,y:712,width:1320,height:178,class:'frame'},g);txt(g,56,736,'UNDER THE BOARD','ft');
+    }};
+}
+
+function V_injector(){
+  const nets={
+    INJ_PWR:{label:'Phone charger (hub)',ext:true,go:{key:'hub'}},
+    WIFI:{label:'Wi-Fi to router (hub)',ext:true,go:{key:'hub'}},
+    AUX_IN:{label:'AUX 5 V adapter (hub)',ext:true,go:{key:'hub'}},
+    V33:{label:'Injector 3V3'},GND:{label:'GND (common)'},
+    SDA:{label:'I2C SDA (GPIO8)'},SCL:{label:'I2C SCL (GPIO9)'},
+    AUX5V:{label:'AUX 5 V'},NC1:{label:'Unused',nc:true},NC2:{label:'Unused',nc:true}
+  };
+  for(let n=1;n<=6;n++){
+    nets['SRV'+n]={label:'Servo N'+n+' signal'};
+    ['SDA_LOW','SCL_LOW','BUS_CAP','BROWNOUT','HEAT'].forEach(function(f){nets['N'+n+'_'+f]={label:'N'+n+' '+f};});
+    nets['CAB'+n]={label:'8-core cable to N'+n+' fault board J1',ext:true,go:{key:'fault',n:n}};
+  }
+  const mcpPins=function(chip){const r=[];['GPA','GPB'].forEach(function(p){for(let i=0;i<8;i++)r.push([p+i,mcpNet(chip,p+i)]);});return r;};
+  const comps=[
+    {id:'ESP',kind:'esp',name:'INJECTOR ESP32-S3',sub:'N16R8 DevKit',x:200,y:60,w:220,h:380,titleH:44,
+      l:[['USB-C','INJ_PWR'],['3V3','V33'],['GND','GND']],t:[['Wi-Fi','WIFI','h']],
+      r:[['GPIO8','SDA'],['GPIO9','SCL']].concat(SERVO_GPIO.map(function(g,i){return [g,'SRV'+(i+1)];})),
+      note:'Gets fault commands from the Pi over Wi-Fi (MQTT) and acks the exact switch-on and switch-off times. GPIO4 to GPIO16 drive the six servos directly.'},
+    {id:'M1',kind:'mod',name:'MCP23017 #1',sub:'7Semi · 0x20, no jumper',x:720,y:30,w:180,h:440,titleH:50,
+      l:[['VCC','V33'],['GND','GND'],['SDA','SDA'],['SCL','SCL']],r:mcpPins(1),
+      note:'Drives the fault lines of N1, N2 and N3. Board labels A0 to A7 and B0 to B7 are GPA0 to GPA7 and GPB0 to GPB7.'},
+    {id:'M2',kind:'mod',name:'MCP23017 #2',sub:'7Semi · 0x21, A0 jumper bridged',x:720,y:510,w:180,h:440,titleH:50,
+      l:[['VCC','V33'],['GND','GND'],['SDA','SDA'],['SCL','SCL']],r:mcpPins(2),
+      note:'Drives the fault lines of N4, N5 and N6. Bridge the A0 address jumper so it answers at 0x21.'},
+    {id:'JK',kind:'term',name:'DC JACK',sub:'2.1 × 5.5 mm',x:40,y:600,w:120,h:110,titleH:40,
+      t:[['PLUG','AUX_IN','h']],r:[['+','AUX5V'],['−','GND']],note:'Female DC jack with a 2-pin screw terminal. The AUX adapter plugs in here.'},
+    {id:'PS',kind:'term',name:'5 V STRIP',sub:'8-way',x:330,y:480,w:100,h:230,titleH:40,
+      l:[['IN','AUX5V']],r:[['C1','AUX5V'],['C2','AUX5V'],['C3','AUX5V'],['C4','AUX5V'],['C5','AUX5V'],['C6','AUX5V'],['SPARE','AUX5V']],
+      note:'8-way screw terminal array, all pins joined underneath. Feeds wire 2 of every cable.'},
+    {id:'GS',kind:'term',name:'GND STRIP',sub:'8-way',x:330,y:740,w:100,h:240,titleH:40,
+      l:[['IN','GND']],r:[['C1','GND'],['C2','GND'],['C3','GND'],['C4','GND'],['C5','GND'],['C6','GND'],['ESP','GND']],
+      note:'8-way screw terminal array, all pins joined underneath. Feeds wire 1 of every cable and ties the injector ESP32 ground to it.'}
+  ];
+  const cpos=[[1170,20],[1170,330],[1170,640],[1540,20],[1540,330],[1540,640]];
+  for(let n=1;n<=6;n++){
+    const p=cpos[n-1];
+    comps.push({id:'C'+n,kind:'term',name:'C'+n,sub:'to N'+n,x:p[0],y:p[1],w:100,h:250,titleH:40,
+      l:FN.map(function(f,k){const net=f==='GND'?'GND':f==='AUX5V'?'AUX5V':f==='SERVO'?'SRV'+n:'N'+n+'_'+f;return [(k+1)+' '+(f==='AUX5V'?'5V':f),net];}),
+      b:[['CABLE','CAB'+n,'h']],
+      note:'8-way screw terminal. The 8-core cable from here runs along the board to the N'+n+' fault board J1, pin for pin.'});
+  }
+  return {key:'injector',title:'Injector board',vb:[0,0,1700,1000],nets:nets,comps:comps,
+    about:'The injector ESP32-S3 receives fault commands from the Pi over Wi-Fi. Two MCP23017 modules add 32 outputs for the 30 fault lines; six of its own pins drive the servos. Each node cable starts at one of the terminals C1 to C6.'};
+}
+
+function V_node(n){
+  return {key:'node',n:n,title:'Node N'+n,vb:[0,0,1400,980],
+    about:'Node N'+n+', one of six identical plates. Sensors sit at the outer edge, at least 5 cm from the ESP32. The fault board receives the cable from the injector and drives the heater, the servo and the DHT22 supply.',
+    nets:{
+      V33:{label:'3V3'},GND:{label:'GND (common)'},
+      SDA0:{label:'I2C 0 SDA'},SCL0:{label:'I2C 0 SCL'},SDA1:{label:'I2C 1 SDA'},SCL1:{label:'I2C 1 SCL'},
+      DHT_DATA:{label:'DHT22 data'},DHT_VCC:{label:'DHT22 power (via Q5)'},
+      AUX5V:{label:'AUX 5 V'},HTR_SW:{label:'Heater switch (Q4)'},SERVO_SIG:{label:'Servo signal'},
+      NODE_PWR:{label:'USB-C 5 V'},
+      MAINS:{label:'Mains strip (under board)',ext:true,go:{key:'hub'}},
+      WIFI:{label:'Wi-Fi to router (hub)',ext:true,go:{key:'hub'}},
+      CAB:{label:'8-core cable from injector C'+n,ext:true,go:{key:'injector'}}
+    },
+    comps:[
+      {id:'TH1',kind:'th',name:'T/H 1',sub:'AHT20 + BMP280',x:150,y:50,w:150,h:150,titleH:40,addr:{bus:'SDA0',a:['0x38','0x77']},
+        l:[['VCC','V33'],['GND','GND'],['SDA','SDA0'],['SCL','SCL0']],note:'AHT20 (0x38) and BMP280 (0x77) on one module, I2C bus 0. The heater sits 5 mm away.'},
+      {id:'HTR',kind:'heat',name:'HEATER',sub:'47 Ω 2 W',x:316,y:80,w:70,h:110,titleH:40,
+        r:[['A','AUX5V'],['B','HTR_SW']],note:'Fixed 5 mm from T/H 1 on every node. About 0.5 W at 5 V. Switched by Q4 on the fault board.'},
+      {id:'TH2',kind:'th',name:'T/H 2',sub:'DHT22',x:680,y:50,w:150,h:128,titleH:40,
+        l:[['VCC','DHT_VCC'],['DATA','DHT_DATA'],['GND','GND']],note:'DHT22 module with a built-in pull-up on DATA. Its power comes through Q5 on the fault board so the brownout fault can sag it.'},
+      {id:'TH3',kind:'th',name:'T/H 3',sub:'AHT30',x:1040,y:50,w:150,h:150,titleH:40,addr:{bus:'SDA1',a:['0x38']},
+        l:[['VCC','V33'],['GND','GND'],['SDA','SDA1'],['SCL','SCL1']],note:'AHT30 at 0x38 on I2C bus 1, so it does not clash with the AHT20 on bus 0.'},
+      {id:'L1',kind:'lux',name:'L1',sub:'BH1750 · 0x23',x:150,y:240,w:150,h:172,titleH:40,addr:{bus:'SDA0',a:['0x23']},
+        l:[['VCC','V33'],['GND','GND'],['SDA','SDA0'],['SCL','SCL0'],['ADDR','GND']],note:'ADDR to GND gives 0x23 on I2C bus 0. The servo flap covers this sensor.'},
+      {id:'SRV',kind:'mod',name:'SERVO',sub:'SG90 + flap',x:316,y:262,w:84,h:128,titleH:40,
+        r:[['GND','GND'],['5V','AUX5V'],['SIG','SERVO_SIG']],note:'Opaque flap over L1, same angle on all six nodes. Brown GND, red 5 V, orange signal. Plugs into J4.'},
+      {id:'L2',kind:'lux',name:'L2',sub:'BH1750 · 0x5C',x:680,y:240,w:150,h:172,titleH:40,addr:{bus:'SDA0',a:['0x5C']},
+        l:[['VCC','V33'],['GND','GND'],['SDA','SDA0'],['SCL','SCL0'],['ADDR','V33']],note:'ADDR to 3V3 gives 0x5C, so it shares I2C bus 0 with L1.'},
+      {id:'L3',kind:'lux',name:'L3',sub:'BH1750 · 0x23',x:1040,y:240,w:150,h:172,titleH:40,addr:{bus:'SDA1',a:['0x23']},
+        l:[['VCC','V33'],['GND','GND'],['SDA','SDA1'],['SCL','SCL1'],['ADDR','GND']],note:'On I2C bus 1, so it keeps working during a bus 0 fault.'},
+      {id:'ESP',kind:'esp',name:'N'+n+' ESP32-S3',sub:'N16R8 DevKit',x:220,y:490,w:240,h:320,titleH:44,
+        l:[['USB-C','NODE_PWR'],['3V3','V33'],['GND','GND']],t:[['Wi-Fi','WIFI','h']],
+        r:[['GPIO8','SDA0'],['GPIO9','SCL0'],['GPIO4','SDA1'],['GPIO5','SCL1'],['GPIO10','DHT_DATA']],
+        note:'Reads all sensors and sends one record per second to the Pi over Wi-Fi. Powered by its own phone charger.'},
+      {id:'RTC',kind:'mod',name:'RTC',sub:'DS3231 (ZS-042)',x:680,y:500,w:150,h:150,titleH:40,addr:{bus:'SDA0',a:['0x68','0x57']},
+        l:[['VCC','V33'],['GND','GND'],['SDA','SDA0'],['SCL','SCL0']],note:'Keeps time when Wi-Fi drops. Powered from 3V3. With a plain CR2032 cell, remove the charging resistor. The module also has an EEPROM at 0x57.'},
+      {id:'FB',kind:'mod',name:'FAULT BOARD',sub:'perfboard',x:1040,y:490,w:200,h:380,titleH:44,open:{key:'fault',n:n},
+        l:[['J1 cable','CAB'],['J2 3V3','V33'],['J2 GND','GND'],['J2 SDA0','SDA0'],['J2 SCL0','SCL0'],['J2 DHT VCC','DHT_VCC']],
+        r:[['J3 +','AUX5V'],['J3 −','HTR_SW'],['J4 GND','GND'],['J4 5V','AUX5V'],['J4 SIG','SERVO_SIG']],
+        note:'Creates the five physical faults. Open it to see every part.'},
+      {id:'CHG',kind:'psu',name:'PHONE CHARGER',x:220,y:860,w:240,h:80,titleH:0,
+        t:[['USB-C OUT','NODE_PWR']],l:[['MAINS','MAINS']],note:'Any 5 V ≥ 1 A phone charger with a USB-A to Type-C cable. One per node, never swapped.'}
+    ],
+    under:function(g){
+      txt(g,20,30,'OUTER EDGE (away from hub)','ft');
+      el('line',{x1:20,y1:440,x2:1380,y2:440,class:'dash'},g);
+      txt(g,1380,432,'5 cm gap line: no sensor below','note','end');
+      txt(g,20,970,'INNER EDGE (faces hub)','ft');
+      txt(g,351,207,'5 mm from T/H 1','note','middle');
+    }};
+}
+
+function V_fault(n){
+  const nets={
+    CAB:{label:'8-core cable from injector C'+n,ext:true,go:{key:'injector'}},
+    X_J2:{label:'to N'+n+' ESP32 + DHT22',ext:true,go:{key:'node',n:n}},
+    X_J3:{label:'to heater (47 Ω)',ext:true,go:{key:'node',n:n}},
+    X_J4:{label:'to SG90 servo',ext:true,go:{key:'node',n:n}},
+    GND:{label:'GND'},AUX5V:{label:'AUX 5 V'},SERVO_SIG:{label:'Servo signal'},
+    SDA_LOW:{label:'J1·4 SDA_LOW'},SCL_LOW:{label:'J1·5 SCL_LOW'},BUS_CAP:{label:'J1·6 BUS_CAP'},BROWNOUT:{label:'J1·7 BROWNOUT'},HEAT:{label:'J1·8 HEAT'},
+    V33:{label:'3V3 (from ESP32)'},SDA0:{label:'I2C 0 SDA'},SCL0:{label:'I2C 0 SCL'},DHT_VCC:{label:'DHT22 VCC'},HTR_SW:{label:'Heater switch'},
+    Q1B:{label:'Q1 base'},Q1C:{label:'Q1 collector'},Q2B:{label:'Q2 base'},Q2C:{label:'Q2 collector'},
+    Q3aB:{label:'Q3a base'},Q3aC:{label:'Q3a collector'},Q3bB:{label:'Q3b base'},Q3bC:{label:'Q3b collector'},
+    Q4B:{label:'Q4 base'},Q6B:{label:'Q6 base'},Q6C:{label:'Q6 collector'},Q5B:{label:'Q5 base'}
+  };
+  const comps=[
+    {id:'J1',kind:'term',name:'J1',sub:'8-way screw',x:190,y:30,w:100,h:250,titleH:40,l:[['cable','CAB','h']],
+      r:FN.map(function(f,k){return [(k+1)+' '+(f==='AUX5V'?'5V':f),f==='SERVO'?'SERVO_SIG':f];}),note:'Cable from injector terminal C'+n+' lands here, pin for pin.'},
+    {id:'J2',kind:'term',name:'J2',sub:'to node',x:600,y:60,w:100,h:200,titleH:40,l:[['wires','X_J2','h']],
+      r:[['3V3','V33'],['GND','GND'],['SDA0','SDA0'],['SCL0','SCL0'],['DHT VCC','DHT_VCC']],note:'Short wires to the N'+n+' ESP32 (3V3, GND, GPIO8, GPIO9) and to the DHT22 VCC pin.'},
+    {id:'J3',kind:'term',name:'J3',sub:'heater',x:960,y:90,w:90,h:120,titleH:40,l:[['wires','X_J3','h']],
+      r:[['1','AUX5V'],['2','HTR_SW']],note:'Two wires to the 47 Ω heater next to T/H 1.'},
+    {id:'J4',kind:'term',name:'J4',sub:'servo',x:1290,y:80,w:90,h:150,titleH:40,l:[['plug','X_J4','h']],
+      r:[['GND','GND'],['5V','AUX5V'],['SIG','SERVO_SIG']],note:'3-pin header. The SG90 plug fits here: brown GND, red 5 V, orange SIG.'}
+  ];
+  const R=function(id,val,a,b,note){return {id:id,kind:'res',name:id,sub:val,l:[['1',a]],r:[['2',b]],note:note};};
+  const Cp=function(id,val,a,b,note){return {id:id,kind:'cap',name:id,sub:val,l:[['1',a]],r:[['2',b]],note:note};};
+  const Q=function(id,type,b,c,e,note){return type==='pnp'?{id:id,kind:'pnp',name:id,sub:'2N2907',l:[['B',b]],t:[['E',e]],b:[['C',c]],note:note}
+                                                        :{id:id,kind:'npn',name:id,sub:'2N2222',l:[['B',b]],t:[['C',c]],b:[['E',e]],note:note};};
+  const lanes=[
+    ['SDA STUCK LOW','J1·4 high: Q1 pulls I2C 0 SDA to ground',[R('R1','1 kΩ','SDA_LOW','Q1B','Base current limit.'),Q('Q1','npn','Q1B','Q1C','GND','Shorts SDA to ground through R3.'),R('R2','10 kΩ','Q1B','GND','Keeps Q1 off when the cable is unplugged.'),R('R3','100 Ω','Q1C','SDA0','Makes a firm stuck-low without a dead short.')]],
+    ['SCL STUCK LOW','J1·5 high: Q2 pulls I2C 0 SCL to ground',[R('R4','1 kΩ','SCL_LOW','Q2B','Base current limit.'),Q('Q2','npn','Q2B','Q2C','GND','Shorts SCL to ground through R6.'),R('R5','10 kΩ','Q2B','GND','Keeps Q2 off when unplugged.'),R('R6','100 Ω','Q2C','SCL0','Firm stuck-low without a dead short.')]],
+    ['EXTRA CAPACITANCE ON SDA','J1·6 high: C1 is switched onto SDA',[R('R7','1 kΩ','BUS_CAP','Q3aB','Base current limit.'),Q('Q3a','npn','Q3aB','Q3aC','GND','Connects C1 to ground.'),R('R8','10 kΩ','Q3aB','GND','Off when unplugged.'),Cp('C1','220 pF','SDA0','Q3aC','Ceramic. Slows the SDA edges.')]],
+    ['EXTRA CAPACITANCE ON SCL','J1·6 high: C2 is switched onto SCL',[R('R9','1 kΩ','BUS_CAP','Q3bB','Base current limit.'),Q('Q3b','npn','Q3bB','Q3bC','GND','Connects C2 to ground. Separate from Q3a so SDA and SCL never couple.'),R('R10','10 kΩ','Q3bB','GND','Off when unplugged.'),Cp('C2','220 pF','SCL0','Q3bC','Ceramic. Slows the SCL edges.')]],
+    ['HEATER SWITCH','J1·8 high: Q4 turns the heater on',[R('R11','1 kΩ','HEAT','Q4B','Base current limit.'),Q('Q4','npn','Q4B','HTR_SW','GND','Sinks about 0.1 A through the 47 Ω heater.'),R('R12','10 kΩ','Q4B','GND','Off when unplugged.')]],
+    ['BROWNOUT DRIVER','J1·7 high (default): Q6 on, so Q5 on',[R('R14','10 kΩ','BROWNOUT','V33','Pull-up: BROWNOUT reads high when the cable is unplugged, so the DHT22 stays powered.'),R('R13','1 kΩ','BROWNOUT','Q6B','Base current limit.'),Q('Q6','npn','Q6B','Q6C','GND','Pulls the Q5 base low to switch Q5 on.'),R('R15','1 kΩ','Q6C','Q5B','Q5 base current limit.')]],
+    ['DHT22 POWER SWITCH','J1·7 low: Q5 off, DHT22 fed only through R17',[R('R16','10 kΩ','Q5B','V33','Turns Q5 off whenever Q6 is off.'),Q('Q5','pnp','Q5B','DHT_VCC','V33','PNP high-side switch that powers the DHT22.'),R('R17','1 kΩ','V33','DHT_VCC','Sag resistor: during the fault the DHT22 supply drops to roughly 1.8 V.')]]
+  ];
+  const LANE_Y0=310,LANE_H=160,GAP=34;
+  const bands=[];
+  lanes.forEach(function(L,i){
+    const y0=LANE_Y0+i*LANE_H, cy=y0+92;
+    let cur=60;
+    L[2].forEach(function(p){
+      if(p.kind==='res'||p.kind==='cap'){
+        p.w=78;p.h=32;p.titleH=0;
+        const a=tagW(nets[p.l[0][1]].label),b=tagW(nets[p.r[0][1]].label);
+        p.x=cur+a+STUB;p.y=cy-16;cur=p.x+p.w+STUB+b+GAP;
+      } else {
+        p.w=72;p.h=58;p.titleH=0;
+        const a=tagW(nets[p.l[0][1]].label),c=tagW(nets[p.t[0][1]].label),e=tagW(nets[p.b[0][1]].label);
+        const over=Math.max(0,(Math.max(c,e)-p.w)/2);
+        p.x=cur+Math.max(a+STUB,over);p.y=cy-29;cur=p.x+p.w+over+GAP;
+      }
+      comps.push(p);
+    });
+    bands.push([y0,L[0],L[1],i+1]);
+  });
+  return {key:'fault',n:n,title:'N'+n+' fault board',vb:[0,0,1500,1440],nets:nets,comps:comps,
+    about:'Fault board on N'+n+'. Each lane is one physical fault, switched by one wire of the injector cable. Every 10 kΩ base resistor keeps its fault off when the cable is unplugged; BROWNOUT is pulled high, so the DHT22 stays powered by default.',
+    under:function(g){
+      bands.forEach(function(b){
+        el('rect',{x:20,y:b[0],width:1460,height:LANE_H-10,class:'frame'},g);
+        txt(g,36,b[0]+22,b[3]+' · '+b[1],'ft');
+        txt(g,1466,b[0]+22,b[2],'note','end');
+      });
+    }};
+}
+
+function V_ref(){
+  return {key:'ref',title:'REF board',vb:[0,0,1100,700],
+    about:'Reference board. One trusted temperature and humidity sensor plus an optional light sensor. No fault board, no injector cable, and never faulted or attacked. Sends one record per second to the Pi on its own topic.',
+    nets:{REF_PWR:{label:'USB-C 5 V'},V33:{label:'3V3'},GND:{label:'GND'},SDA:{label:'I2C SDA'},SCL:{label:'I2C SCL'},
+      MAINS:{label:'Mains strip (under board)',ext:true,go:{key:'hub'}},WIFI:{label:'Wi-Fi to router (hub)',ext:true,go:{key:'hub'}}},
+    comps:[
+      {id:'ESP',kind:'esp',name:'REF ESP32-S3',sub:'N16R8 DevKit',x:220,y:150,w:220,h:270,titleH:44,
+        l:[['USB-C','REF_PWR'],['3V3','V33'],['GND','GND']],r:[['GPIO8','SDA'],['GPIO9','SCL']],t:[['Wi-Fi','WIFI','h']],
+        note:'Same board as the nodes. Publishes on its own topic, for example tw/ref/rec.'},
+      {id:'T',kind:'th',name:'REF T/H',sub:'AHT30',x:640,y:70,w:170,h:150,titleH:40,addr:{bus:'SDA',a:['0x38']},
+        l:[['VCC','V33'],['GND','GND'],['SDA','SDA'],['SCL','SCL']],note:'Reference temperature and humidity. Mount at sensor height, at least 5 cm from the ESP32.'},
+      {id:'L',kind:'lux',name:'REF LIGHT',sub:'BH1750 · optional',x:640,y:270,w:170,h:172,titleH:40,addr:{bus:'SDA',a:['0x23']},
+        l:[['VCC','V33'],['GND','GND'],['SDA','SDA'],['SCL','SCL'],['ADDR','GND']],note:'Optional. Shows the lamp switching on as a real change.'},
+      {id:'CHG',kind:'psu',name:'PHONE CHARGER',x:220,y:540,w:220,h:80,titleH:0,
+        t:[['USB-C OUT','REF_PWR']],l:[['MAINS','MAINS']],note:'Any 5 V ≥ 1 A phone charger.'}
+    ],
+    under:function(g){txt(g,20,30,'REF PLATE (top-right corner of the base board)','ft');}};
+}
+
+const BUILD={board:V_board,hub:V_hub,injector:V_injector,node:V_node,fault:V_fault,ref:V_ref};
+
+/* ---------------- independent connection spec (for the cross-check) ---------------- */
+function SPEC(key,n){
+  if(key==='board')return {};
+  if(key==='hub')return {
+    ETH:['RT.LAN 1','PI.ETH'],RT_PWR:['RT.DC IN','P2.DC OUT'],NC_WAN:['RT.WAN'],WIFI:['RT.Wi-Fi','INJ.Wi-Fi'],
+    BTN_SIG:['PI.GPIO17 (pin 11)','BTN.LEG 1'],BTN_GND:['PI.GND (pin 9)','BTN.LEG 2'],PI_PWR:['PI.USB-C power','P1.USB-C OUT'],
+    INJ_PWR:['INJ.USB-C (ESP32)','P3.USB-C OUT'],AUX_IN:['INJ.DC jack','P4.DC OUT'],MAINS:['P1.MAINS','P2.MAINS','P3.MAINS','P4.MAINS'],
+    CAB1:['INJ.C1'],CAB2:['INJ.C2'],CAB3:['INJ.C3'],CAB4:['INJ.C4'],CAB5:['INJ.C5'],CAB6:['INJ.C6']};
+  if(key==='injector'){
+    const s={INJ_PWR:['ESP.USB-C'],WIFI:['ESP.Wi-Fi'],AUX_IN:['JK.PLUG'],
+      V33:['ESP.3V3','M1.VCC','M2.VCC'],SDA:['ESP.GPIO8','M1.SDA','M2.SDA'],SCL:['ESP.GPIO9','M1.SCL','M2.SCL'],
+      GND:['ESP.GND','M1.GND','M2.GND','JK.−','GS.IN','GS.C1','GS.C2','GS.C3','GS.C4','GS.C5','GS.C6','GS.ESP','C1.1 GND','C2.1 GND','C3.1 GND','C4.1 GND','C5.1 GND','C6.1 GND'],
+      AUX5V:['JK.+','PS.IN','PS.C1','PS.C2','PS.C3','PS.C4','PS.C5','PS.C6','PS.SPARE','C1.2 5V','C2.2 5V','C3.2 5V','C4.2 5V','C5.2 5V','C6.2 5V'],
+      SRV1:['ESP.GPIO4','C1.3 SERVO'],SRV2:['ESP.GPIO5','C2.3 SERVO'],SRV3:['ESP.GPIO6','C3.3 SERVO'],SRV4:['ESP.GPIO7','C4.3 SERVO'],SRV5:['ESP.GPIO15','C5.3 SERVO'],SRV6:['ESP.GPIO16','C6.3 SERVO'],
+      N1_SDA_LOW:['M1.GPA0','C1.4 SDA_LOW'],N1_SCL_LOW:['M1.GPA1','C1.5 SCL_LOW'],N1_BUS_CAP:['M1.GPA2','C1.6 BUS_CAP'],N1_BROWNOUT:['M1.GPA3','C1.7 BROWNOUT'],N1_HEAT:['M1.GPA4','C1.8 HEAT'],
+      N2_SDA_LOW:['M1.GPB0','C2.4 SDA_LOW'],N2_SCL_LOW:['M1.GPB1','C2.5 SCL_LOW'],N2_BUS_CAP:['M1.GPB2','C2.6 BUS_CAP'],N2_BROWNOUT:['M1.GPB3','C2.7 BROWNOUT'],N2_HEAT:['M1.GPB4','C2.8 HEAT'],
+      N3_SDA_LOW:['M1.GPA5','C3.4 SDA_LOW'],N3_SCL_LOW:['M1.GPA6','C3.5 SCL_LOW'],N3_BUS_CAP:['M1.GPA7','C3.6 BUS_CAP'],N3_BROWNOUT:['M1.GPB5','C3.7 BROWNOUT'],N3_HEAT:['M1.GPB6','C3.8 HEAT'],
+      N4_SDA_LOW:['M2.GPA0','C4.4 SDA_LOW'],N4_SCL_LOW:['M2.GPA1','C4.5 SCL_LOW'],N4_BUS_CAP:['M2.GPA2','C4.6 BUS_CAP'],N4_BROWNOUT:['M2.GPA3','C4.7 BROWNOUT'],N4_HEAT:['M2.GPA4','C4.8 HEAT'],
+      N5_SDA_LOW:['M2.GPB0','C5.4 SDA_LOW'],N5_SCL_LOW:['M2.GPB1','C5.5 SCL_LOW'],N5_BUS_CAP:['M2.GPB2','C5.6 BUS_CAP'],N5_BROWNOUT:['M2.GPB3','C5.7 BROWNOUT'],N5_HEAT:['M2.GPB4','C5.8 HEAT'],
+      N6_SDA_LOW:['M2.GPA5','C6.4 SDA_LOW'],N6_SCL_LOW:['M2.GPA6','C6.5 SCL_LOW'],N6_BUS_CAP:['M2.GPA7','C6.6 BUS_CAP'],N6_BROWNOUT:['M2.GPB5','C6.7 BROWNOUT'],N6_HEAT:['M2.GPB6','C6.8 HEAT'],
+      NC1:['M1.GPB7'],NC2:['M2.GPB7']};
+    for(let k=1;k<=6;k++)s['CAB'+k]=['C'+k+'.CABLE'];
+    return s;
+  }
+  if(key==='node')return {
+    V33:['ESP.3V3','TH1.VCC','TH3.VCC','L1.VCC','L2.VCC','L3.VCC','L2.ADDR','RTC.VCC','FB.J2 3V3'],
+    GND:['ESP.GND','TH1.GND','TH2.GND','TH3.GND','L1.GND','L2.GND','L3.GND','L1.ADDR','L3.ADDR','RTC.GND','FB.J2 GND','FB.J4 GND','SRV.GND'],
+    SDA0:['ESP.GPIO8','TH1.SDA','L1.SDA','L2.SDA','RTC.SDA','FB.J2 SDA0'],SCL0:['ESP.GPIO9','TH1.SCL','L1.SCL','L2.SCL','RTC.SCL','FB.J2 SCL0'],
+    SDA1:['ESP.GPIO4','TH3.SDA','L3.SDA'],SCL1:['ESP.GPIO5','TH3.SCL','L3.SCL'],
+    DHT_DATA:['ESP.GPIO10','TH2.DATA'],DHT_VCC:['TH2.VCC','FB.J2 DHT VCC'],
+    AUX5V:['HTR.A','SRV.5V','FB.J3 +','FB.J4 5V'],HTR_SW:['HTR.B','FB.J3 −'],SERVO_SIG:['SRV.SIG','FB.J4 SIG'],
+    NODE_PWR:['ESP.USB-C','CHG.USB-C OUT'],MAINS:['CHG.MAINS'],WIFI:['ESP.Wi-Fi'],CAB:['FB.J1 cable']};
+  if(key==='fault')return {
+    CAB:['J1.cable'],X_J2:['J2.wires'],X_J3:['J3.wires'],X_J4:['J4.plug'],
+    GND:['J1.1 GND','J2.GND','J4.GND','Q1.E','Q2.E','Q3a.E','Q3b.E','Q4.E','Q6.E','R2.2','R5.2','R8.2','R10.2','R12.2'],
+    AUX5V:['J1.2 5V','J3.1','J4.5V'],SERVO_SIG:['J1.3 SERVO','J4.SIG'],
+    SDA_LOW:['J1.4 SDA_LOW','R1.1'],SCL_LOW:['J1.5 SCL_LOW','R4.1'],BUS_CAP:['J1.6 BUS_CAP','R7.1','R9.1'],
+    BROWNOUT:['J1.7 BROWNOUT','R13.1','R14.1'],HEAT:['J1.8 HEAT','R11.1'],
+    V33:['J2.3V3','R14.2','Q5.E','R16.2','R17.1'],SDA0:['J2.SDA0','R3.2','C1.1'],SCL0:['J2.SCL0','R6.2','C2.1'],
+    DHT_VCC:['J2.DHT VCC','Q5.C','R17.2'],HTR_SW:['J3.2','Q4.C'],
+    Q1B:['R1.2','Q1.B','R2.1'],Q1C:['Q1.C','R3.1'],Q2B:['R4.2','Q2.B','R5.1'],Q2C:['Q2.C','R6.1'],
+    Q3aB:['R7.2','Q3a.B','R8.1'],Q3aC:['Q3a.C','C1.2'],Q3bB:['R9.2','Q3b.B','R10.1'],Q3bC:['Q3b.C','C2.2'],
+    Q4B:['R11.2','Q4.B','R12.1'],Q6B:['R13.2','Q6.B'],Q6C:['Q6.C','R15.1'],Q5B:['R15.2','Q5.B','R16.1']};
+  if(key==='ref')return {
+    REF_PWR:['ESP.USB-C','CHG.USB-C OUT'],V33:['ESP.3V3','T.VCC','L.VCC'],GND:['ESP.GND','T.GND','L.GND','L.ADDR'],
+    SDA:['ESP.GPIO8','T.SDA','L.SDA'],SCL:['ESP.GPIO9','T.SCL','L.SCL'],MAINS:['CHG.MAINS'],WIFI:['ESP.Wi-Fi']};
+  return {};
+}
+const VALUES={R1:'1 kΩ',R2:'10 kΩ',R3:'100 Ω',R4:'1 kΩ',R5:'10 kΩ',R6:'100 Ω',R7:'1 kΩ',R8:'10 kΩ',R9:'1 kΩ',R10:'10 kΩ',R11:'1 kΩ',R12:'10 kΩ',R13:'1 kΩ',R14:'10 kΩ',R15:'1 kΩ',R16:'10 kΩ',R17:'1 kΩ',C1:'220 pF',C2:'220 pF'};
+
+/* ---------------- geometry ---------------- */
+function pinsOf(c){
+  const out=[];const th=c.titleH||0;
+  ['l','r','t','b'].forEach(function(side){
+    const arr=c[side]||[];const n=arr.length;
+    arr.forEach(function(p,i){
+      let x,y;
+      if(side==='l'||side==='r'){y=c.y+th+(c.h-th)*(i+1)/(n+1);x=side==='l'?c.x:c.x+c.w;}
+      else{x=c.x+c.w*(i+1)/(n+1);y=side==='t'?c.y:c.y+c.h;}
+      out.push({side:side,name:p[0],net:p[1],hide:p[2]==='h',x:x,y:y,comp:c});
+    });
+  });
+  return out;
+}
+
+/* ---------------- drawing ---------------- */
+const svg=document.getElementById('sv'),layer=document.getElementById('layer');
+let V=null;
+
+function drawView(v){
+  layer.textContent='';
+  const under=el('g',{},layer);if(v.under)v.under(under);
+  const pinXY={};
+  const wires=el('g',{},layer);
+  v.comps.forEach(function(c){
+    const g=el('g',{class:'comp k-'+c.kind+(c.open?' open':''),'data-comp':c.id},layer);
+    if(c.open){g.setAttribute('tabindex','0');g.setAttribute('role','button');g.setAttribute('aria-label','Open '+c.name);}
+    el('rect',{x:c.x,y:c.y,width:c.w,height:c.h,class:'blk'},g);
+    if(c.open)el('rect',{x:c.x+4,y:c.y+4,width:c.w-8,height:c.h-8,class:'inner'},g);
+    const small=(c.kind==='res'||c.kind==='cap'||c.kind==='npn'||c.kind==='pnp');
+    if(c.nameAbove){txt(g,c.x,c.y-8,c.name,'nm');}
+    else if(small){
+      if(c.kind==='npn'||c.kind==='pnp'){txt(g,c.x+c.w/2+6,c.y+c.h/2-3,c.name,'nm','middle');txt(g,c.x+c.w/2+6,c.y+c.h/2+13,c.sub,'sb','middle');}
+      else{txt(g,c.x+c.w/2,c.y+14,c.name,'nm','middle').setAttribute('style','font-size:13px');txt(g,c.x+c.w/2,c.y+27,c.sub,'sb','middle');}
+    } else if(c.titleH){
+      txt(g,c.x+c.w/2,c.y+19,c.name,'nm','middle');if(c.sub)txt(g,c.x+c.w/2,c.y+35,c.sub,'sb','middle');
+    } else {
+      txt(g,c.x+c.w/2,c.y+c.h/2-2,c.name,'nm','middle');if(c.sub)txt(g,c.x+c.w/2,c.y+c.h/2+15,c.sub,'sb','middle');
+    }
+    if(c.preview)drawPreview(g,c);
+    pinsOf(c).forEach(function(p){
+      const net=v.nets[p.net]||{label:'?'};
+      pinXY[c.id+'.'+p.name]=p;
+      if(!p.hide&&!(c.kind==='res'||c.kind==='cap')){
+        let tx,ty,an;
+        if(p.side==='l'){tx=p.x+5;ty=p.y+4;an='start';}
+        else if(p.side==='r'){tx=p.x-5;ty=p.y+4;an='end';}
+        else if(p.side==='t'){tx=p.x;ty=p.y+12;an='middle';}
+        else{tx=p.x;ty=p.y-5;an='middle';}
+        if(!(c.titleH&&(p.side==='t')))txt(g,tx,ty,p.name,'pn',an);
+      }
+      if(net.wire)return;
+      const s=el('g',{},g);
+      let ex=p.x,ey=p.y;
+      if(p.side==='l')ex-=STUB;else if(p.side==='r')ex+=STUB;else if(p.side==='t')ey-=STUB;else ey+=STUB;
+      el('line',{x1:p.x,y1:p.y,x2:ex,y2:ey,class:'stub','data-net':p.net},s);
+      el('circle',{cx:p.x,cy:p.y,r:2.4,class:'dot','data-net':p.net},s);
+      const w=tagW(net.label);let rx,ry;
+      if(p.side==='l'){rx=ex-w;ry=ey-TAG_H/2;}else if(p.side==='r'){rx=ex;ry=ey-TAG_H/2;}
+      else if(p.side==='t'){rx=ex-w/2;ry=ey-TAG_H;}else{rx=ex-w/2;ry=ey;}
+      const tg=el('g',{class:'tag'+(net.ext?' ext':'')+(net.nc?' nc':''),'data-net':p.net},s);
+      el('rect',{x:rx,y:ry,width:w,height:TAG_H},tg);
+      txt(tg,rx+w/2,ry+14.5,net.label,'','middle');
+    });
+  });
+  Object.keys(v.nets).forEach(function(id){
+    const net=v.nets[id];if(!net.wire)return;
+    const pts=[];v.comps.forEach(function(c){pinsOf(c).forEach(function(p){if(p.net===id)pts.push(p);});});
+    if(pts.length===2){
+      el('line',{x1:pts[0].x,y1:pts[0].y,x2:pts[1].x,y2:pts[1].y,class:'wire','data-net':id},wires);
+      txt(wires,(pts[0].x+pts[1].x)/2,pts[0].y-12,net.wireLabel||net.label,'note','middle');
+    }
+  });
+}
+
+function drawPreview(g,c){
+  const p=el('g',{class:'pv'},g);const x=c.x,y=c.y;
+  if(c.preview==='node'){
+    [14,51,88].forEach(function(dx){el('rect',{x:x+dx,y:y+14,width:18,height:14,class:'o'},p);el('rect',{x:x+dx,y:y+38,width:18,height:14,class:'u'},p);});
+    el('line',{x1:x,y1:y+64,x2:x+c.w,y2:y+64,class:'dash'},p);
+    el('rect',{x:x+12,y:y+76,width:34,height:62,class:'e'},p);
+    el('rect',{x:x+60,y:y+76,width:48,height:30,class:'b'},p);
+    el('rect',{x:x+60,y:y+112,width:48,height:26,class:'b'},p);
+  } else if(c.preview==='ref'){
+    el('rect',{x:x+20,y:y+16,width:22,height:16,class:'o'},p);el('rect',{x:x+68,y:y+16,width:22,height:16,class:'u'},p);
+    el('line',{x1:x,y1:y+46,x2:x+c.w,y2:y+46,class:'dash'},p);
+    el('rect',{x:x+35,y:y+58,width:40,height:42,class:'e'},p);
+  } else if(c.preview==='hub'){
+    el('rect',{x:385,y:385,width:230,height:58,class:'b'},p);txt(p,500,419,'WI-FI ROUTER','','middle');
+    el('line',{x1:500,y1:443,x2:500,y2:472,stroke:'#1B2A1E','stroke-width':3},p);
+    el('rect',{x:452,y:472,width:96,height:56,class:'e'},p);txt(p,500,505,'RPI 5','','middle');
+    el('rect',{x:385,y:556,width:230,height:58,class:'e'},p);txt(p,500,590,'INJECTOR BOARD','','middle');
+  }
+}
+
+/* ---------------- view box + animation ---------------- */
+let vb=[0,0,1000,1000];
+function setVB(r){vb=r.slice();svg.setAttribute('viewBox',r.map(function(n){return Math.round(n*100)/100;}).join(' '));}
+const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function animVB(to,ms){
+  return new Promise(function(res){
+    if(reduce||!ms){setVB(to);res();return;}
+    const from=vb.slice(),t0=performance.now();
+    function step(t){let k=Math.min(1,(t-t0)/ms);k=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+      setVB(from.map(function(f,i){return f+(to[i]-f)*k;}));if(k<1)requestAnimationFrame(step);else res();}
+    requestAnimationFrame(step);
+  });
+}
+function sleep(ms){return new Promise(function(r){setTimeout(r,reduce?0:ms);});}
+function pad(r){const px=r[2]*0.12,py=r[3]*0.12;return [r[0]-px,r[1]-py,r[2]+2*px,r[3]+2*py];}
+
+/* ---------------- navigation ---------------- */
+let stack=[{key:'board'}];let busy=false;
+function viewFor(s){return BUILD[s.key](s.n);}
+function show(s,rectVB){
+  V=viewFor(s);drawView(V);setVB(rectVB||V.vb);clearSel();updateChrome();
+}
+function updateChrome(){
+  document.getElementById('ptitle').textContent=V.title;
+  document.getElementById('pabout').textContent=V.about;
+  document.getElementById('back').disabled=stack.length<2;
+  const cr=document.getElementById('crumbs');cr.textContent='';
+  stack.forEach(function(s,i){
+    if(i){const sp=document.createElement('span');sp.textContent='›';cr.appendChild(sp);}
+    const b=document.createElement('button');b.type='button';b.textContent=viewFor(s).title;
+    if(i===stack.length-1)b.setAttribute('aria-current','page');else b.addEventListener('click',function(){jumpTo(i);});
+    cr.appendChild(b);
+  });
+  document.getElementById('ppart').innerHTML='<p class="muted">Select a part to see its notes. Blocks with a double border zoom in.</p>';
+}
+async function openTarget(target,rect){
+  if(busy)return;busy=true;
+  await animVB(pad(rect),480);
+  layer.style.opacity=0;await sleep(160);
+  stack.push({key:target.key,n:target.n,rect:rect});
+  show(stack[stack.length-1]);
+  layer.style.opacity=1;await sleep(170);busy=false;
+}
+async function back(){
+  if(busy||stack.length<2)return;busy=true;
+  const leaving=stack.pop();
+  layer.style.opacity=0;await sleep(160);
+  show(stack[stack.length-1],leaving.rect?pad(leaving.rect):null);
+  layer.style.opacity=1;await sleep(120);
+  await animVB(V.vb,460);busy=false;
+}
+function jumpTo(i){if(busy)return;stack=stack.slice(0,i+1);show(stack[i]);}
+function goExt(go){
+  if(busy)return;
+  // Build the path to the target from the board so Back always returns to a parent.
+  const path=[{key:'board'}];
+  if(go.key==='hub'||go.key==='injector')path.push({key:'hub',rect:[370,370,260,260]});
+  if(go.key==='injector')path.push({key:'injector',rect:[560,430,400,250]});
+  const nodeRects=[[440,95],[726,260],[726,590],[440,755],[154,590],[154,260]];
+  if(go.key==='node'||go.key==='fault'){const p=nodeRects[go.n-1];path.push({key:'node',n:go.n,rect:[p[0],p[1],120,150]});}
+  if(go.key==='fault')path.push({key:'fault',n:go.n,rect:[1040,490,200,380]});
+  if(go.key==='ref')path.push({key:'ref',rect:[815,80,110,110]});
+  stack=path;show(stack[stack.length-1]);
+}
+
+/* ---------------- selection ---------------- */
+let selNet=null;
+function clearSel(){selNet=null;svg.classList.remove('sel');layer.querySelectorAll('.on').forEach(function(e){e.classList.remove('on');});
+  layer.querySelectorAll('.picked').forEach(function(e){e.classList.remove('picked');});
+  document.getElementById('pnet').innerHTML='<p class="muted">Select any label tag to see every pin on that connection. Matching tags are the same wire.</p>';}
+function endpoints(v,id){
+  const out=[];v.comps.forEach(function(c){pinsOf(c).forEach(function(p){if(p.net===id){
+    const nm=(c.kind==='res'||c.kind==='cap')?(c.name+' ('+c.sub+') end '+p.name):(c.kind==='npn'||c.kind==='pnp')?(c.name+' '+({B:'base',C:'collector',E:'emitter'})[p.name]):(c.name+' · '+p.name);
+    out.push(nm);}});});return out;
+}
+function esc(s){return String(s).replace(/[&<>"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];});}
+function selectNet(id){
+  clearSel();selNet=id;svg.classList.add('sel');
+  layer.querySelectorAll('[data-net="'+id+'"]').forEach(function(e){e.classList.add('on');});
+  const net=V.nets[id];const eps=endpoints(V,id);
+  let h='<p><b>'+esc(net.label)+'</b></p><ul>'+eps.map(function(e){return '<li>'+esc(e)+'</li>';}).join('')+'</ul>';
+  if(net.nc)h+='<p class="muted">Not connected to anything.</p>';
+  if(net.info)h+='<p class="muted">'+esc(net.info)+'</p>';
+  if(net.ext&&net.go){h+='<p class="muted">Continues in another view.</p><button type="button" class="go" id="gobtn">Open '+esc(viewFor(net.go).title)+'</button>';}
+  document.getElementById('pnet').innerHTML=h;
+  const gb=document.getElementById('gobtn');if(gb)gb.addEventListener('click',function(){goExt(net.go);});
+}
+function pickPart(id){
+  layer.querySelectorAll('.picked').forEach(function(e){e.classList.remove('picked');});
+  const c=V.comps.find(function(x){return x.id===id;});if(!c)return;
+  const g=layer.querySelector('[data-comp="'+id+'"]');if(g)g.classList.add('picked');
+  document.getElementById('ppart').innerHTML='<p><b>'+esc(c.name)+'</b>'+(c.sub?' · '+esc(c.sub):'')+'</p>'+(c.note?'<p>'+esc(c.note)+'</p>':'');
+}
+
+/* ---------------- pointer: pan, zoom, click ---------------- */
+const pts=new Map();let drag=null,moved=false,pinch=null;
+function toSvg(cx,cy){const m=svg.getScreenCTM();if(!m)return {x:0,y:0};const p=svg.createSVGPoint();p.x=cx;p.y=cy;return p.matrixTransform(m.inverse());}
+function zoomAt(f,cx,cy){
+  const p=toSvg(cx,cy);const w=vb[2]*f,h=vb[3]*f;
+  const full=V.vb;if(w>full[2]*3||w<full[2]/12)return;
+  setVB([p.x-(p.x-vb[0])*f,p.y-(p.y-vb[1])*f,w,h]);
+}
+svg.addEventListener('wheel',function(e){e.preventDefault();if(busy)return;zoomAt(Math.pow(1.0018,e.deltaY),e.clientX,e.clientY);},{passive:false});
+svg.addEventListener('pointerdown',function(e){
+  if(e.button===0||e.pointerType!=='mouse')e.preventDefault();
+  const sel=window.getSelection&&window.getSelection();if(sel&&sel.removeAllRanges)sel.removeAllRanges();
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});moved=false;
+  if(pts.size===1){drag={x:e.clientX,y:e.clientY,vb:vb.slice()};}
+  if(pts.size===2){const a=Array.from(pts.values());pinch={d:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),vb:vb.slice(),mx:(a[0].x+a[1].x)/2,my:(a[0].y+a[1].y)/2};drag=null;}
+});
+svg.addEventListener('pointermove',function(e){
+  if(!pts.has(e.pointerId))return;pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(busy)return;
+  if(pinch&&pts.size===2){const a=Array.from(pts.values());const d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);
+    if(d>0){setVB(pinch.vb);zoomAt(pinch.d/d,pinch.mx,pinch.my);}moved=true;return;}
+  if(drag){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+    if(!moved&&Math.hypot(dx,dy)<5)return;
+    if(!moved){moved=true;svg.classList.add('panning');try{svg.setPointerCapture(e.pointerId);}catch(_){}}
+    const m=svg.getScreenCTM();const s=m?m.a:1;setVB([drag.vb[0]-dx/s,drag.vb[1]-dy/s,drag.vb[2],drag.vb[3]]);}
+});
+function endPtr(e){
+  const wasMoved=moved;pts.delete(e.pointerId);if(pts.size<2)pinch=null;
+  svg.classList.remove('panning');
+  if(e.type==='pointerup'&&!wasMoved&&pts.size===0){handleClick(e.target);}
+  if(pts.size===0)drag=null;
+}
+svg.addEventListener('pointerup',endPtr);svg.addEventListener('pointercancel',endPtr);
+function handleClick(t){
+  if(busy)return;
+  const tag=t.closest&&t.closest('[data-net]');
+  if(tag&&!tag.classList.contains('wire')||tag&&tag.classList.contains('wire')){selectNet(tag.getAttribute('data-net'));return;}
+  const comp=t.closest&&t.closest('[data-comp]');
+  if(comp){const c=V.comps.find(function(x){return x.id===comp.getAttribute('data-comp');});
+    if(c&&c.open){openTarget(c.open,[c.x,c.y,c.w,c.h]);return;}
+    pickPart(c.id);return;}
+  clearSel();
+}
+layer.addEventListener('keydown',function(e){
+  if(e.key!=='Enter'&&e.key!==' ')return;const comp=e.target.closest('[data-comp]');if(!comp)return;
+  const c=V.comps.find(function(x){return x.id===comp.getAttribute('data-comp');});if(c&&c.open){e.preventDefault();openTarget(c.open,[c.x,c.y,c.w,c.h]);}
+});
+document.getElementById('back').addEventListener('click',back);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')back();});
+const stage=document.getElementById('stage');
+function centerZoom(f){const r=svg.getBoundingClientRect();zoomAt(f,r.left+r.width/2,r.top+r.height/2);}
+document.getElementById('zin').addEventListener('click',function(){centerZoom(1/1.35);});
+document.getElementById('zout').addEventListener('click',function(){centerZoom(1.35);});
+document.getElementById('zfit').addEventListener('click',function(){animVB(V.vb,300);});
+
+/* ---------------- self check (used during build; harmless at runtime) ---------------- */
+function check(){
+  const errs=[];
+  const list=[{key:'board'},{key:'hub'},{key:'injector'},{key:'ref'}];
+  for(let n=1;n<=6;n++){list.push({key:'node',n:n});list.push({key:'fault',n:n});}
+  list.forEach(function(s){
+    const v=viewFor(s);const tag=s.key+(s.n?s.n:'');
+    const ids=new Set();const got={};
+    v.comps.forEach(function(c){
+      if(ids.has(c.id))errs.push(tag+': duplicate id '+c.id);ids.add(c.id);
+      const pn=new Set();
+      pinsOf(c).forEach(function(p){
+        if(pn.has(p.name))errs.push(tag+': duplicate pin '+c.id+'.'+p.name);pn.add(p.name);
+        if(!v.nets[p.net])errs.push(tag+': unknown net '+p.net+' on '+c.id+'.'+p.name);
+        (got[p.net]=got[p.net]||[]).push(c.id+'.'+p.name);
+        if(/^(J\d )?GND$/.test(p.name)&&!/GND/.test(p.net))errs.push(tag+': GND pin on '+p.net+' '+c.id);
+        if(/VCC|3V3/.test(p.name)&&!/V33|DHT_VCC/.test(p.net))errs.push(tag+': supply pin '+c.id+'.'+p.name+' on '+p.net);
+      });
+      if(c.kind==='res'||c.kind==='cap'){const a=c.l[0][1],b=c.r[0][1];if(a===b)errs.push(tag+': '+c.id+' shorted');
+        if(VALUES[c.id]&&VALUES[c.id]!==c.sub)errs.push(tag+': '+c.id+' value '+c.sub+' expected '+VALUES[c.id]);}
+      if(c.kind==='npn'||c.kind==='pnp'){const b=c.l[0][1],x=c.t[0][1],y=c.b[0][1];if(b===x||b===y||x===y)errs.push(tag+': '+c.id+' pins share a net');}
+    });
+    Object.keys(v.nets).forEach(function(id){const net=v.nets[id];const k=(got[id]||[]).length;
+      if(!net.ext&&!net.nc&&k<2)errs.push(tag+': net '+id+' has '+k+' endpoint(s)');
+      if(k===0)errs.push(tag+': net '+id+' unused');});
+    const spec=SPEC(s.key,s.n);
+    Object.keys(spec).forEach(function(id){const a=(got[id]||[]).slice().sort().join('|'),b=spec[id].slice().sort().join('|');if(a!==b)errs.push(tag+': net '+id+' drawn ['+a+'] spec ['+b+']');});
+    Object.keys(got).forEach(function(id){if(s.key!=='board'&&!spec[id])errs.push(tag+': net '+id+' missing from spec');});
+    const bus={};v.comps.forEach(function(c){if(c.addr)c.addr.a.forEach(function(a){const k=c.addr.bus+a;if(bus[k])errs.push(tag+': address clash '+a+' on '+c.addr.bus+' ('+bus[k]+', '+c.id+')');bus[k]=c.id;});});
+    v.comps.forEach(function(c){if(c.addr){const sda=(c.l||[]).find(function(p){return p[0]==='SDA';});if(!sda||sda[1]!==c.addr.bus)errs.push(tag+': '+c.id+' address bus mismatch');}});
+  });
+  // cross-view: injector cable pin k must match fault board J1 pin k for every node
+  const inj=viewFor({key:'injector'});
+  for(let n=1;n<=6;n++){
+    const f=viewFor({key:'fault',n:n});const J1=f.comps.find(function(c){return c.id==='J1';});const Cn=inj.comps.find(function(c){return c.id==='C'+n;});
+    FN.forEach(function(fn,k){const jn=J1.r[k][1],cn=Cn.l[k][1];
+      const expectC=fn==='GND'?'GND':fn==='AUX5V'?'AUX5V':fn==='SERVO'?'SRV'+n:'N'+n+'_'+fn;
+      const expectJ=fn==='SERVO'?'SERVO_SIG':fn;
+      if(cn!==expectC)errs.push('C'+n+' pin '+(k+1)+' is '+cn+', expected '+expectC);
+      if(jn!==expectJ)errs.push('N'+n+' J1 pin '+(k+1)+' is '+jn+', expected '+expectJ);
+      if(J1.r[k][0]!==Cn.l[k][0])errs.push('pin name mismatch C'+n+'/J1 pin '+(k+1));});
+    const node=viewFor({key:'node',n:n});const FB=node.comps.find(function(c){return c.id==='FB';});
+    const fJ2=f.comps.find(function(c){return c.id==='J2';}).r.map(function(p){return p[1];}).join(',');
+    const nJ2=FB.l.filter(function(p){return /^J2/.test(p[0]);}).map(function(p){return p[1];}).join(',');
+    if(fJ2!==nJ2)errs.push('N'+n+' J2 mismatch '+fJ2+' vs '+nJ2);
+  }
+  return errs;
+}
+window.TW={check:check,BUILD:BUILD,show:function(key,n){stack=[{key:key,n:n}];show(stack[0]);},
+  boxes:function(){const out=[];layer.querySelectorAll('.blk, .tag rect, .comp > text, .note, .ft').forEach(function(e){const b=e.getBBox();
+    out.push({k:e.classList.contains('blk')?'blk':e.closest('.tag')?'tag':'text',id:(e.closest('[data-comp]')||{}).getAttribute?e.closest('[data-comp]').getAttribute('data-comp'):'',t:(e.textContent||'').slice(0,30),x:b.x,y:b.y,w:b.width,h:b.height});});return out;}};
+
+show(stack[0]);
+})();
+</script>
+</body>
+</html>
